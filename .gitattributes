@@ -1,0 +1,6 @@
+* text=auto
+*.bat text eol=crlf
+*.py text eol=lf
+*.js text eol=lf
+*.woff2 binary
+*.png binary

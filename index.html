@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>期权 PCR 观测 · 滚动通道</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b0e14'/%3E%3Cpath d='M10 46l11-9 8 6 10-15 11 7' fill='none' stroke='%234fc3f7' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M10 22h44' stroke='%23ffb74d' stroke-width='4' stroke-linecap='round' opacity='.9'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="assets/style.css" />
+</head>
+<body>
+<!-- 契约 §7：自动化验证挂钩，勿删（v2 起 error 语义同时覆盖 /api/data 与 /api/futures） -->
+<div id="bootState" data-state="loading" data-msg="" style="display:none"></div>
+
+<header class="top">
+  <div class="brand">
+    <span class="pulse"></span>
+    <h1>期权 PCR 观测</h1>
+    <span class="tag">成交PCR/持仓PCR · 期货升贴水 · 滚动通道</span>
+  </div>
+  <div class="top-meta">
+    <span id="srcLine" class="src">数据来源：上海证券交易所 · 股票期权每日统计</span>
+    <span id="updated" class="updated">加载中…</span>
+    <button id="btnRefresh" class="btn" type="button">
+      <span class="ico">⟳</span><span class="txt">刷新数据</span>
+    </button>
+  </div>
+</header>
+
+<nav class="tabs" id="mainTabs" role="tablist" aria-label="看板切换">
+  <button type="button" class="tab on" data-tab="pcr" role="tab" aria-selected="true">期权 PCR</button>
+  <button type="button" class="tab" data-tab="fut" role="tab" aria-selected="false">期货升贴水</button>
+</nav>
+
+<section class="boot-hint hide" id="bootHint"></section>
+
+<!-- ============================================================ 期权 PCR 看板 -->
+<div id="pcrPane">
+  <section class="toolbar">
+    <div class="seg" id="tabs" role="tablist"></div>
+    <div class="spacer"></div>
+    <span class="tool-note">成交 PCR（快变量） vs 持仓 PCR（慢变量） · 分位 20/60/250 日 · 黄灯 = |差值 z| ≥ 2</span>
+  </section>
+
+  <section class="panel pcr-matrix-panel">
+    <div class="panel-hd">
+      <h2>周期矩阵 · 成交 PCR vs 持仓 PCR</h2>
+      <span class="hint">滚动分位窗口 20 / 60 / 250 日 · 红底 ≥85%（拥挤）· 绿底 ≤15%（冷清）· 点击行切换焦点</span>
+      <span class="matrix-date" id="pcrMatrixDate"></span>
+    </div>
+    <div id="pcrMatrix" class="pm-table"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-hd">
+      <h2 id="mainTitle">成交 PCR vs 持仓 PCR 双轨</h2>
+      <span class="hint" id="mainHint"></span>
+    </div>
+    <div id="chartPcr" class="chart chart-pcr"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-hd">
+      <h2>差值（成交 PCR − 持仓 PCR）</h2>
+      <span class="hint" id="spreadHint"></span>
+      <span class="badge hide" id="spreadBadge"></span>
+    </div>
+    <div id="chartSpread" class="chart chart-spread"></div>
+  </section>
+</div>
+
+<!-- ========================================================== 期货升贴水看板 -->
+<div id="futPane" class="hide">
+  <section class="toolbar">
+    <div class="seg" id="futChips" role="tablist"></div>
+    <div class="spacer"></div>
+    <span class="matrix-date" id="matrixDate"></span>
+  </section>
+
+  <div class="fut-note" id="futNote">
+    说明：本看板固定跟踪 <b>30 天恒定到期年化贴水</b>（用相邻两合约基差按剩余日历天数插值到 30 天再年化，正=贴水），
+    统一周期口径，避免近月剩余天数很小时 <code>365/剩余天数</code> 对年化值的放大，也避免每月换月主力切换的跳变。
+    周期矩阵平铺 <b>当前值</b> 与 <b>20 / 60 / 120 日</b>滚动分位、稳健 Z（分位 &gt;90% 深红、&lt;10% 深绿）；
+    主图叠加 MA20 / MA60 / MA120 与 120 日 ±2σ 通道；悬停主图可查看任意历史日期的位置，移出恢复最新。
+    另：中金所目前只有 <b>IF</b>（沪深300）、<b>IC</b>（中证500）、<b>IM</b>（中证1000）、<b>IH</b>（上证50）四个股指期货品种，
+    暂无科创50 指数期货，因此本看板无法计算科创50 的升贴水。
+  </div>
+
+  <section class="boot-hint hide" id="futGuide"></section>
+
+  <section class="panel matrix-panel">
+    <div class="panel-hd">
+      <h2>周期矩阵 · 恒定到期 30D 年化</h2>
+      <span class="hint">分位为最新值在 20/60/120 日窗口中的历史位置；稳健 Z = (x−中位数)/(1.4826×MAD)</span>
+    </div>
+    <div id="futMatrix" class="matrix"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-hd">
+      <h2 id="futMainTitle">期货升贴水通道</h2>
+      <span class="hint" id="futMainHint"></span>
+    </div>
+    <div id="chartFut" class="chart"></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-hd">
+      <h2 id="termTitle">贴水 vs 到期月</h2>
+      <span class="hint" id="termHint">横轴=到期时间，纵轴=年化贴水率%（正=贴水）；每个点是一个在交易合约，按到期日由近到远排列</span>
+    </div>
+    <div id="chartTerm" class="chart chart-term"></div>
+  </section>
+</div>
+
+<footer class="foot" id="foot">
+  <span id="footNote">口径：成交PCR = 认沽成交量 / 认购成交量；持仓PCR = 认沽持仓量 / 认购持仓量 · 上交所单市场口径</span>
+  <span class="disc">本页仅作数据可视化，不构成任何投资建议。</span>
+</footer>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<div id="loading" class="loading hide"><span class="ring"></span><span class="ltxt">正在加载数据…</span></div>
+
+<script src="vendor/echarts.min.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

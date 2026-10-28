@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+tests/__pycache__/
+*.pyc
+.pytest_cache/
+
+# 运行时缓存与生成数据（仓库只保留交易日历种子）
+cache/
+data/*.csv
+!data/seed_calendar.csv
+build.log
+
+# 打包产物
+*.zip
+
+# 操作系统
+.DS_Store
